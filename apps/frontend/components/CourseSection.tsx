@@ -1,5 +1,6 @@
+"use client";
+
 import * as React from "react";
-import { addPropertyControls, ControlType } from "framer";
 import {
   deriveState,
   filterCourses,
@@ -7,10 +8,10 @@ import {
   sortCoursesByPrice,
   type Course,
   type SortDirection,
-} from "./logic";
+} from "../lib/logic";
 
-// Infra config, not a design knob — deliberately not a property control.
-const API_BASE_URL = "https://skillpath-backend-eo23.onrender.com";
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://skillpath-backend-eo23.onrender.com";
 const COURSE_DATA_ENDPOINT = `${API_BASE_URL}/api/v1/assignment/course-data`;
 
 const PALETTE = {
@@ -21,12 +22,8 @@ const PALETTE = {
   text: "#f5f3f7",
   textMuted: "#b7aec2",
   black: "#050308",
+  accent: "#7c5cbf",
 };
-
-interface CourseSectionProps {
-  accentColor: string;
-  sectionTitle: string;
-}
 
 interface FetchState {
   loading: boolean;
@@ -103,7 +100,7 @@ function CourseCard({ course }: { course: Course }) {
   );
 }
 
-export default function CourseSection(props: CourseSectionProps) {
+export default function CourseSection() {
   const { loading, error, courses, retry } = useCourseData();
   const [query, setQuery] = React.useState("");
   const [sortDirection, setSortDirection] = React.useState<SortDirection>("none");
@@ -122,14 +119,11 @@ export default function CourseSection(props: CourseSectionProps) {
   }
 
   return (
-    <section
-      className="sp-section"
-      style={{ "--sp-accent": props.accentColor } as React.CSSProperties}
-    >
+    <section id="courses" className="sp-section">
       <style>{STYLES}</style>
 
       <div className="sp-header">
-        <h2 className="sp-title">{props.sectionTitle}</h2>
+        <h2 className="sp-title">Explore Courses</h2>
 
         <div className="sp-controls">
           <input
@@ -196,31 +190,11 @@ export default function CourseSection(props: CourseSectionProps) {
   );
 }
 
-addPropertyControls(CourseSection, {
-  accentColor: {
-    type: ControlType.Color,
-    title: "Accent Color",
-    defaultValue: "#7c5cbf",
-  },
-  sectionTitle: {
-    type: ControlType.String,
-    title: "Section Title",
-    defaultValue: "Explore Courses",
-  },
-});
-
 const STYLES = `
 .sp-section {
-  --sp-bg: ${PALETTE.bg};
-  --sp-surface: ${PALETTE.surface};
-  --sp-surface-raised: ${PALETTE.surfaceRaised};
-  --sp-border: ${PALETTE.border};
-  --sp-text: ${PALETTE.text};
-  --sp-text-muted: ${PALETTE.textMuted};
-  background: var(--sp-bg);
-  color: var(--sp-text);
+  background: ${PALETTE.bg};
+  color: ${PALETTE.text};
   padding: 48px 24px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 .sp-header {
@@ -236,7 +210,7 @@ const STYLES = `
   font-size: 28px;
   font-weight: 600;
   margin: 0;
-  color: var(--sp-text);
+  color: ${PALETTE.text};
 }
 
 .sp-controls {
@@ -246,9 +220,9 @@ const STYLES = `
 }
 
 .sp-search {
-  background: var(--sp-surface);
-  border: 1px solid var(--sp-border);
-  color: var(--sp-text);
+  background: ${PALETTE.surface};
+  border: 1px solid ${PALETTE.border};
+  color: ${PALETTE.text};
   border-radius: 8px;
   padding: 10px 14px;
   font-size: 14px;
@@ -257,8 +231,8 @@ const STYLES = `
 }
 .sp-search:focus {
   outline: none;
-  border-color: var(--sp-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sp-accent) 25%, transparent);
+  border-color: ${PALETTE.accent};
+  box-shadow: 0 0 0 3px color-mix(in srgb, ${PALETTE.accent} 25%, transparent);
 }
 
 .sp-btn {
@@ -277,20 +251,20 @@ const STYLES = `
   transform: translateY(0);
 }
 .sp-btn-primary {
-  background: var(--sp-accent);
+  background: ${PALETTE.accent};
   color: ${PALETTE.black};
 }
 .sp-btn-primary:hover {
-  box-shadow: 0 4px 16px color-mix(in srgb, var(--sp-accent) 45%, transparent);
+  box-shadow: 0 4px 16px color-mix(in srgb, ${PALETTE.accent} 45%, transparent);
 }
 .sp-btn-ghost {
   background: transparent;
-  border-color: var(--sp-border);
-  color: var(--sp-text);
+  border-color: ${PALETTE.border};
+  color: ${PALETTE.text};
 }
 .sp-btn-ghost:hover {
-  border-color: var(--sp-accent);
-  color: var(--sp-accent);
+  border-color: ${PALETTE.accent};
+  color: ${PALETTE.accent};
 }
 
 .sp-group {
@@ -301,7 +275,7 @@ const STYLES = `
   font-size: 20px;
   font-weight: 600;
   margin: 0 0 12px;
-  color: var(--sp-text);
+  color: ${PALETTE.text};
 }
 .sp-subgroup {
   margin-bottom: 24px;
@@ -309,7 +283,7 @@ const STYLES = `
 .sp-subgroup-title {
   font-size: 14px;
   font-weight: 500;
-  color: var(--sp-text-muted);
+  color: ${PALETTE.textMuted};
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin: 0 0 12px;
@@ -332,8 +306,8 @@ const STYLES = `
 }
 
 .sp-card {
-  background: var(--sp-surface);
-  border: 1px solid var(--sp-border);
+  background: ${PALETTE.surface};
+  border: 1px solid ${PALETTE.border};
   border-radius: 12px;
   padding: 20px;
   display: flex;
@@ -344,7 +318,7 @@ const STYLES = `
 }
 .sp-card:hover {
   transform: translateY(-4px);
-  border-color: var(--sp-accent);
+  border-color: ${PALETTE.accent};
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
 }
 
@@ -357,26 +331,26 @@ const STYLES = `
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--sp-text-muted);
+  color: ${PALETTE.textMuted};
 }
 .sp-badge {
   font-size: 11px;
   padding: 4px 8px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--sp-accent) 20%, transparent);
-  color: var(--sp-accent);
-  border: 1px solid color-mix(in srgb, var(--sp-accent) 40%, transparent);
+  background: color-mix(in srgb, ${PALETTE.accent} 20%, transparent);
+  color: ${PALETTE.accent};
+  border: 1px solid color-mix(in srgb, ${PALETTE.accent} 40%, transparent);
 }
 
 .sp-card-title {
   font-size: 16px;
   font-weight: 600;
   margin: 0;
-  color: var(--sp-text);
+  color: ${PALETTE.text};
 }
 .sp-card-desc {
   font-size: 13px;
-  color: var(--sp-text-muted);
+  color: ${PALETTE.textMuted};
   margin: 0;
   line-height: 1.5;
   display: -webkit-box;
@@ -391,7 +365,7 @@ const STYLES = `
 .sp-card-price {
   font-size: 15px;
   font-weight: 600;
-  color: var(--sp-text);
+  color: ${PALETTE.text};
 }
 
 .sp-skeleton {
@@ -402,9 +376,9 @@ const STYLES = `
   border-radius: 4px;
   background: linear-gradient(
     90deg,
-    var(--sp-surface-raised) 25%,
-    var(--sp-border) 37%,
-    var(--sp-surface-raised) 63%
+    ${PALETTE.surfaceRaised} 25%,
+    ${PALETTE.border} 37%,
+    ${PALETTE.surfaceRaised} 63%
   );
   background-size: 400% 100%;
   animation: sp-shimmer 1.4s ease infinite;
@@ -423,13 +397,13 @@ const STYLES = `
   align-items: flex-start;
   gap: 16px;
   padding: 32px;
-  background: var(--sp-surface);
-  border: 1px solid var(--sp-border);
+  background: ${PALETTE.surface};
+  border: 1px solid ${PALETTE.border};
   border-radius: 12px;
 }
 .sp-state-text {
   margin: 0;
-  color: var(--sp-text-muted);
+  color: ${PALETTE.textMuted};
   font-size: 14px;
 }
 

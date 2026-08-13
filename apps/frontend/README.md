@@ -1,66 +1,49 @@
-# SkillPath — Frontend (Framer Code Component)
+# SkillPath — Frontend
 
-This isn't a runnable app — Framer Code Components are single self-contained
-`.tsx` files pasted into Framer's own code editor, where Framer supplies the
-`framer` runtime module (`addPropertyControls`, `ControlType`, etc.). What
-lives in this folder is the source of that file plus the logic it's built on,
-kept testable with Bun.
+A standard Next.js (App Router) app — no Framer involved. Hero, the live
+courses section, and the footer are plain React components composed on one
+page and deployed like any normal site.
 
 ## Files
 
-- `src/logic.ts` — pure, framework-free logic: grouping courses by
+- `lib/logic.ts` — pure, framework-free logic: grouping courses by
   `mainCategory` → `shortCourse`, search filtering, price sorting,
   loading/error/empty/success state derivation, and the footer's copyright
-  line. Covered by `src/__tests__/logic.test.ts` (`bun test`).
-- `src/CourseSection.tsx` — the courses-section Framer Code Component. A thin
-  shell around `logic.ts` that handles fetching, rendering, styling, and its
-  two property controls (Accent Color, Section Title).
-- `src/Hero.tsx` — headline / subheadline / CTA button, four property
-  controls (Headline, Subheadline, Button Label, Accent Color) so a designer
-  can rewrite the copy without touching code.
-- `src/Footer.tsx` — three links + a copyright line that auto-fills the
-  current year via `formatCopyright` from `logic.ts`. Property controls:
-  Brand Name, Links (array of label/url pairs), Accent Color.
-- `src/framer.d.ts` — ambient types for the `framer` module (`ControlType`,
-  `addPropertyControls`) purely so `bun run check-types` can typecheck these
-  files in this repo; inside Framer itself, `framer` resolves to Framer's
-  real runtime.
+  line. Covered by `lib/__tests__/logic.test.ts` (`bun test`).
+- `components/CourseSection.tsx` — client component (`"use client"`) that
+  fetches `GET {API_BASE_URL}/api/v1/assignment/course-data`, and renders
+  loading (skeletons) / error (message + Retry) / empty / success states.
+  Includes search, sort-by-price, grouped rendering, refundable badges, and
+  a 3/2/1-column responsive grid.
+- `components/Hero.tsx` — headline / subheadline / CTA button, plain props
+  with sane defaults (edit the component directly to change copy — no
+  property-controls panel needed since this isn't Framer).
+- `components/Footer.tsx` — three links + auto-updating copyright year via
+  `formatCopyright` from `lib/logic.ts`.
+- `app/page.tsx` / `app/layout.tsx` / `app/globals.css` — the App Router
+  shell that composes the three components into one page.
 
-None of these files can actually *run* outside Framer — they're the source
-that gets pasted into Framer's code editor, one file per Code Component.
+## API URL configuration
 
-## Using it in Framer
+`CourseSection.tsx` reads `NEXT_PUBLIC_API_BASE_URL`, falling back to the
+live deployed backend (`https://skillpath-backend-eo23.onrender.com`) if
+that env var isn't set. Set `NEXT_PUBLIC_API_BASE_URL` in your deploy
+platform's environment variables if you deploy the backend somewhere else.
 
-1. `apps/backend` is deployed at `https://skillpath-backend-eo23.onrender.com`
-   and `src/CourseSection.tsx`'s `API_BASE_URL` already points there
-   (deliberately not a property control — it's infra config, not something
-   a designer should be able to break from the panel). If you redeploy the
-   backend elsewhere, update that constant to match.
-3. In Framer: **Insert → Code → New Code File**, once per component
-   (`CourseSection.tsx`, `Hero.tsx`, `Footer.tsx`), paste each file's
-   contents, and drag the resulting components onto the canvas in order:
-   Hero → CourseSection → Footer.
-4. Each component exposes its own property controls in the right-hand panel:
-   - **CourseSection** — Accent Color (buttons, hover states, the refundable
-     badge, search-focus ring), Section Title (heading above search/sort).
-   - **Hero** — Headline, Subheadline, Button Label, Accent Color.
-   - **Footer** — Brand Name, Links (add/remove/reorder label+URL pairs),
-     Accent Color.
+## Development
 
-All three share the same dark-purple/white/black palette tokens so the page
-reads as one system even though each is a separate pasted-in file.
+```sh
+bun install
+bun test              # logic.ts tests
+bun run check-types
+bun run dev             # http://localhost:3000
+bun run build            # production build (also typechecks + lints via Next)
+```
 
-## Grid behavior
+## Deploying
 
-3 columns on desktop, 2 on tablet (≤1024px), 1 on mobile (≤640px), via CSS
-Grid breakpoints in `CourseSection.tsx` — no assumption about the exact
-course count, since the upstream API returns 5–10 courses per call.
-
-## What's verified here vs. only verifiable in Framer
-
-- Verified by `bun test` / `bun run check-types` in this repo: grouping,
-  filtering, sorting, and loading/error/empty/success state derivation
-  (`logic.ts`), plus that `CourseSection.tsx` typechecks.
-- **Not** verifiable outside Framer: the property-controls panel actually
-  rendering and updating live, and on-canvas responsive behavior. Paste the
-  component into a real Framer project to check those.
+This is a standard Next.js app — deploy it anywhere that runs Next.js
+(Vercel is the zero-config option: connect the GitHub repo, set the root
+directory to `apps/frontend`, done). See
+`apps/claude-instruction/claude-deploy.md` for the exact steps taken/needed
+for this project.

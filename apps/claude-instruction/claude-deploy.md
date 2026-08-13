@@ -30,9 +30,10 @@ Bun running on Render without fighting a Node-oriented buildpack.
    `.turbo`, and build output from the Docker build context.
 4. **`render.yaml`** (repo root) — a Render "Blueprint" spec: one Docker web
    service (`skillpath-backend`), free plan, health check on `/healthz`,
-   env vars `BASE_URL` (the upstream base) and `PORT`. This lets Render
-   auto-detect and configure the service from the repo instead of you
-   filling in every field by hand in the dashboard.
+   env var `BASE_URL` (the upstream base). This lets Render auto-detect and
+   configure the service from the repo instead of you filling in every
+   field by hand in the dashboard. (An earlier version also set an explicit
+   `PORT` env var — removed after causing a one-time restart, see below.)
 5. Verified locally: `bun test` (19/19 pass, including the new `/healthz`
    test) and `bun run check-types` (clean) — both directly, both green.
    I also attempted `docker build -f apps/backend/Dockerfile -t
@@ -83,26 +84,53 @@ service, since Render prefers auto-detecting the bound port. Removed the
 explicit `PORT` env var from `render.yaml` so there's only one source of
 truth (the Dockerfile's `EXPOSE`) going forward.
 
-## After the backend is live: wiring up the frontend
+## Frontend: pivoted away from Framer
 
-The frontend (`apps/frontend`) is Framer Code Component source, not a
-deployable app in this repo — see `apps/frontend/README.md` for the full
-paste-into-Framer walkthrough. The one thing you must do once the backend
-URL exists:
+The assignment doc originally described a "landing page in Framer" with
+property controls, so the frontend was first built as Framer Code
+Component source (paste-in `.tsx` files). That turned out to add real
+friction (Framer's code-file UI wasn't easy to find, and Framer isn't
+actually a hosting platform — a code component is just one piece dropped
+into a Framer-built canvas, not a deployable site). Since the real goal is
+a working, visitable website, the frontend was rebuilt as a **standard
+Next.js (App Router) app** in `apps/frontend` — see
+`apps/frontend/README.md`. No Framer involved anymore.
 
-1. Open `apps/frontend/src/CourseSection.tsx`.
-2. Replace the `API_BASE_URL` constant near the top with your Render URL
-   from step 5 above.
-3. Paste `Hero.tsx`, `CourseSection.tsx`, `Footer.tsx` into Framer as
-   separate Code Components (per `apps/frontend/README.md`), place them on
-   the canvas in that order, and publish the Framer site.
+## Deploying the frontend (Vercel — needs your login, same as Render)
+
+Vercel is Next.js's native platform and is zero-config for this kind of
+app. I have no Vercel account access, API token, or authenticated CLI in
+this environment, so — same situation as Render — this step needs you:
+
+1. Go to <https://vercel.com/new> and sign in (GitHub OAuth is easiest).
+2. **Import Project** → select the `shubham-gupta-244/lms` repo.
+3. When asked for the **Root Directory**, set it to `apps/frontend`
+   (this is a monorepo — Vercel needs to know which app to build).
+4. Framework Preset should auto-detect as **Next.js**. Leave build/output
+   settings at their defaults (`next build`, `.next`).
+5. (Optional) Add an environment variable `NEXT_PUBLIC_API_BASE_URL` if you
+   ever deploy the backend somewhere other than
+   `https://skillpath-backend-eo23.onrender.com` — `CourseSection.tsx`
+   falls back to that URL automatically if the env var isn't set, so this
+   is only needed if the backend URL changes.
+6. **Deploy**. Vercel gives you a public URL
+   (e.g. `https://lms-<something>.vercel.app`) — that's the actual
+   visitable website link.
 
 ## Local verification
 
-- `bun test` in `apps/backend`: 19 pass, 0 fail.
-- `bun run check-types` in `apps/backend`: clean.
-- `docker build` locally: attempted, blocked by this sandbox having no
+- Backend: `bun test` in `apps/backend` — 19 pass, 0 fail.
+  `bun run check-types` — clean.
+  `docker build` locally: attempted, blocked by this sandbox having no
   outbound network access for Docker's registry pulls (see above) — not
-  something I could work around here. First real build will happen on
-  Render itself; if it fails, the error will show in Render's build logs
-  and is easy to iterate on from there.
+  something I could work around here. The real build ran successfully on
+  Render itself (confirmed live, see the port-detection note above).
+- Frontend: `bun test` in `apps/frontend` — 15 pass, 0 fail (`lib/logic.ts`
+  coverage). `bun run check-types` — clean. `bun run build` (`next build`)
+  — succeeds, produces a static-optimized `/` route. Also ran `next dev`
+  locally and curled `http://localhost:3000/` — confirmed the Hero
+  headline, "Explore Courses" title, and "SkillPath" all render
+  server-side. Not verified here: the live fetch to the backend rendering
+  correctly in an actual browser (this environment has no browser), and
+  the deployed Vercel build (blocked on you connecting the repo, per
+  above).
