@@ -31,11 +31,11 @@ that gets pasted into Framer's code editor, one file per Code Component.
 
 ## Using it in Framer
 
-1. Deploy `apps/backend` and grab its public URL.
-2. Open `src/CourseSection.tsx` and replace the `API_BASE_URL` constant at
-   the top with that deployed URL (deliberately not a property control —
-   it's infra config, not something a designer should be able to break from
-   the panel).
+1. `apps/backend` is deployed at `https://skillpath-backend-eo23.onrender.com`
+   and `src/CourseSection.tsx`'s `API_BASE_URL` already points there
+   (deliberately not a property control — it's infra config, not something
+   a designer should be able to break from the panel). If you redeploy the
+   backend elsewhere, update that constant to match.
 3. In Framer: **Insert → Code → New Code File**, once per component
    (`CourseSection.tsx`, `Hero.tsx`, `Footer.tsx`), paste each file's
    contents, and drag the resulting components onto the canvas in order:

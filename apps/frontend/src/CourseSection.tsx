@@ -10,7 +10,7 @@ import {
 } from "./logic";
 
 // Infra config, not a design knob — deliberately not a property control.
-const API_BASE_URL = "https://your-backend-domain.example.com";
+const API_BASE_URL = "https://skillpath-backend-eo23.onrender.com";
 const COURSE_DATA_ENDPOINT = `${API_BASE_URL}/api/v1/assignment/course-data`;
 
 const PALETTE = {
