@@ -9,5 +9,3 @@ services:
     envVars:
       - key: BASE_URL
         value: https://syncsphere-hiv6.onrender.com
-      - key: PORT
-        value: 4000

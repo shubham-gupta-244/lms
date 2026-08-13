@@ -69,6 +69,20 @@ through.
 6. Confirm it's live: `curl https://<your-render-url>/healthz` should
    return `{"status":"ok"}`.
 
+## Post-deploy note: a one-time port-detection restart
+
+After the first successful deploy, Render logged `Detected service running
+on port 4000` about 5 minutes after going live, then restarted the
+container once (`SIGTERM`, immediate relaunch). The service recovered on
+its own and has been stable and correctly responding since
+(`/healthz` → `200`, `/api/v1/assignment/course-data` → `200`/`502`
+depending on the upstream's real flakiness, `POST` → `405`, all confirmed
+live). Likely cause: `render.yaml` originally set an explicit `PORT=4000`
+env var alongside the Dockerfile's `EXPOSE 4000` — redundant for a Docker
+service, since Render prefers auto-detecting the bound port. Removed the
+explicit `PORT` env var from `render.yaml` so there's only one source of
+truth (the Dockerfile's `EXPOSE`) going forward.
+
 ## After the backend is live: wiring up the frontend
 
 The frontend (`apps/frontend`) is Framer Code Component source, not a
