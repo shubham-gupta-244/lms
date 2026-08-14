@@ -52,6 +52,35 @@ export function sortCoursesByPrice(courses: Course[], direction: SortDirection):
   return direction === "asc" ? sorted : sorted.reverse();
 }
 
+export interface MainCategory {
+  name: string;
+  courseCount: number;
+  subCourseCount: number;
+}
+
+export function buildMainCategories(courses: Course[]): MainCategory[] {
+  const map = new Map<string, { courseCount: number; subCourses: Set<string> }>();
+  for (const course of courses) {
+    if (!map.has(course.mainCategory)) {
+      map.set(course.mainCategory, { courseCount: 0, subCourses: new Set() });
+    }
+    const entry = map.get(course.mainCategory)!;
+    entry.courseCount += 1;
+    entry.subCourses.add(course.shortCourse);
+  }
+  return Array.from(map.entries()).map(([name, entry]) => ({
+    name,
+    courseCount: entry.courseCount,
+    subCourseCount: entry.subCourses.size,
+  }));
+}
+
+export function nextSortDirection(current: SortDirection): SortDirection {
+  if (current === "none") return "asc";
+  if (current === "asc") return "desc";
+  return "none";
+}
+
 export type GroupedCourses = Map<string, Map<string, Course[]>>;
 
 export function groupCourses(courses: Course[]): GroupedCourses {
