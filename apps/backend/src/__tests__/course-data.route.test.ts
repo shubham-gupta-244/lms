@@ -1,6 +1,8 @@
+import axios from "axios";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import request from "supertest";
 import { app } from "../app";
+import { resetCourseCache } from "../services/upstream";
 
 const COURSE_PATH = "/api/v1/assignment/course-data";
 const UPSTREAM_COURSE_URL = "https://syncsphere-hiv6.onrender.com/assignment/course-data";
@@ -19,39 +21,54 @@ const sampleCourse = {
   refundable: true,
 };
 
-function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json" },
-  });
+interface MockResponse {
+  status: number;
+  data: unknown;
 }
 
-let originalFetch: typeof fetch;
+function jsonResponse(body: unknown, status = 200): MockResponse {
+  return { status, data: body };
+}
+
+const originalGet = axios.get;
 
 beforeEach(() => {
-  originalFetch = globalThis.fetch;
+  resetCourseCache();
 });
 
 afterEach(() => {
-  globalThis.fetch = originalFetch;
+  axios.get = originalGet;
 });
 
 function mockFetch(handlers: {
-  courses?: () => Response | Promise<Response>;
-  country?: () => Response | Promise<Response>;
+  courses?: () => MockResponse | Promise<MockResponse>;
+  country?: () => MockResponse | Promise<MockResponse>;
 }) {
-  globalThis.fetch = (async (input: RequestInfo | URL) => {
-    const url = typeof input === "string" ? input : input.toString();
+  axios.get = (async (url: string) => {
     if (url === UPSTREAM_COURSE_URL) {
       if (!handlers.courses) throw new Error("unexpected course-data fetch");
-      return handlers.courses();
+      const res = await handlers.courses();
+      if (res.status >= 400) {
+        throw Object.assign(new Error(`Request failed with status code ${res.status}`), {
+          isAxiosError: true,
+          response: res,
+        });
+      }
+      return res;
     }
     if (url === UPSTREAM_COUNTRY_URL) {
       if (!handlers.country) throw new Error("unexpected country-code fetch");
-      return handlers.country();
+      const res = await handlers.country();
+      if (res.status >= 400) {
+        throw Object.assign(new Error(`Request failed with status code ${res.status}`), {
+          isAxiosError: true,
+          response: res,
+        });
+      }
+      return res;
     }
     throw new Error(`unexpected fetch url: ${url}`);
-  }) as typeof fetch;
+  }) as typeof axios.get;
 }
 
 describe("GET /api/v1/assignment/course-data", () => {
@@ -179,6 +196,64 @@ describe("GET /api/v1/assignment/course-data", () => {
     expect(res.status).toBe(502);
     expect(res.text).not.toContain("TypeError");
     expect(res.text).not.toContain("at ");
+  });
+});
+
+describe("in-memory caching of upstream course data", () => {
+  test("reuses cached courses on the next request instead of calling upstream again", async () => {
+    let courseCalls = 0;
+    mockFetch({
+      courses: () => {
+        courseCalls += 1;
+        return jsonResponse([sampleCourse]);
+      },
+      country: () => jsonResponse({ country_code: "IN" }),
+    });
+
+    const first = await request(app).get(COURSE_PATH);
+    const second = await request(app).get(COURSE_PATH);
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(courseCalls).toBe(1);
+    expect(second.body.courses).toEqual(first.body.courses);
+  });
+
+  test("calls upstream again after the cache is reset (data lost)", async () => {
+    let courseCalls = 0;
+    mockFetch({
+      courses: () => {
+        courseCalls += 1;
+        return jsonResponse([sampleCourse]);
+      },
+      country: () => jsonResponse({ country_code: "IN" }),
+    });
+
+    await request(app).get(COURSE_PATH);
+    resetCourseCache();
+    await request(app).get(COURSE_PATH);
+
+    expect(courseCalls).toBe(2);
+  });
+
+  test("does not cache a failed upstream call, and retries on the next request", async () => {
+    let courseCalls = 0;
+    mockFetch({
+      courses: () => {
+        courseCalls += 1;
+        return courseCalls === 1
+          ? jsonResponse({ error: "boom" }, 500)
+          : jsonResponse([sampleCourse]);
+      },
+      country: () => jsonResponse({ country_code: "IN" }),
+    });
+
+    const first = await request(app).get(COURSE_PATH);
+    const second = await request(app).get(COURSE_PATH);
+
+    expect(first.status).toBe(502);
+    expect(second.status).toBe(200);
+    expect(courseCalls).toBe(2);
   });
 });
 

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import * as React from "react";
 import {
   deriveState,
@@ -13,17 +14,6 @@ import {
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://skillpath-backend-eo23.onrender.com";
 const COURSE_DATA_ENDPOINT = `${API_BASE_URL}/api/v1/assignment/course-data`;
-
-const PALETTE = {
-  bg: "#0f0b16",
-  surface: "#1b1424",
-  surfaceRaised: "#241a30",
-  border: "#3a2c4a",
-  text: "#f5f3f7",
-  textMuted: "#b7aec2",
-  black: "#050308",
-  accent: "#7c5cbf",
-};
 
 interface FetchState {
   loading: boolean;
@@ -67,36 +57,88 @@ function useCourseData() {
   return { ...state, retry };
 }
 
+const shimmerStyle = {
+  backgroundImage:
+    "linear-gradient(90deg, var(--color-sp-surface-raised) 25%, var(--color-sp-border) 37%, var(--color-sp-surface-raised) 63%)",
+  backgroundSize: "400% 100%",
+};
+
 function SkeletonCard() {
   return (
-    <div className="sp-card sp-skeleton">
-      <div className="sp-skeleton-line sp-skeleton-title" />
-      <div className="sp-skeleton-line" />
-      <div className="sp-skeleton-line sp-skeleton-short" />
+    <div className="flex w-[280px] flex-none flex-col gap-2.5 rounded-xl border border-sp-border bg-sp-surface p-5">
+      <div
+        className="h-[18px] w-[70%] animate-[sp-shimmer_1.4s_ease_infinite] rounded"
+        style={shimmerStyle}
+      />
+      <div
+        className="h-3 animate-[sp-shimmer_1.4s_ease_infinite] rounded"
+        style={shimmerStyle}
+      />
+      <div
+        className="h-3 w-[40%] animate-[sp-shimmer_1.4s_ease_infinite] rounded"
+        style={shimmerStyle}
+      />
     </div>
   );
 }
 
 function RefundableBadge() {
-  return <span className="sp-badge">Refundable</span>;
+  return (
+    <span className="rounded-full border border-sp-accent/35 bg-sp-accent/10 px-2 py-1 text-[11px] text-sp-accent">
+      Refundable
+    </span>
+  );
 }
 
 function CourseCard({ course }: { course: Course }) {
   return (
-    <div className="sp-card">
-      <div className="sp-card-top">
-        <span className="sp-card-type">{course.courseType}</span>
+    <Link
+      href={`/course/${course.mangoId}`}
+      className="flex w-[280px] flex-none animate-[sp-fade-in_0.35s_ease_both] flex-col gap-2 rounded-xl border border-sp-border bg-sp-surface p-5 text-inherit no-underline transition-all duration-200 ease-out hover:-translate-y-1.5 hover:scale-[1.04] hover:border-sp-accent hover:shadow-[0_16px_28px_rgba(39,63,245,0.16)] active:translate-y-[-2px] active:scale-[1.01]"
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] uppercase tracking-wide text-sp-text-muted">
+          {course.courseType}
+        </span>
         {course.refundable ? <RefundableBadge /> : null}
       </div>
-      <h4 className="sp-card-title">{course.courseName}</h4>
-      <p className="sp-card-desc">{course.description}</p>
-      <div className="sp-card-footer">
-        <span className="sp-card-price">
+      <h4 className="m-0 text-base font-semibold text-sp-text">{course.courseName}</h4>
+      <p className="m-0 line-clamp-3 text-[13px] leading-relaxed text-sp-text-muted">
+        {course.description}
+      </p>
+      <div className="mt-auto pt-2">
+        <span className="text-[15px] font-semibold text-sp-text">
           {course.price.currency === "INR" ? "₹" : "$"}
           {course.price.formatted}
         </span>
       </div>
-    </div>
+    </Link>
+  );
+}
+
+interface MainCategoryCardProps {
+  name: string;
+  courseCount: number;
+  subCourseCount: number;
+  onClick: () => void;
+}
+
+function MainCategoryCard({ name, courseCount, subCourseCount, onClick }: MainCategoryCardProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-[260px] flex-none animate-[sp-fade-in_0.35s_ease_both] flex-col gap-2.5 rounded-xl border border-sp-border bg-sp-surface p-[22px] text-left font-inherit text-inherit transition-all duration-200 ease-out hover:-translate-y-1.5 hover:scale-[1.03] hover:border-sp-accent hover:shadow-[0_16px_28px_rgba(39,63,245,0.16)] active:translate-y-[-2px] active:scale-[1.01]"
+    >
+      <h4 className="m-0 text-lg font-semibold text-sp-text">{name}</h4>
+      <p className="m-0 text-[13px] text-sp-text-muted">
+        {subCourseCount} sub-course{subCourseCount === 1 ? "" : "s"} · {courseCount} course
+        {courseCount === 1 ? "" : "s"}
+      </p>
+      <span className="mt-auto text-lg font-semibold text-sp-accent" aria-hidden>
+        →
+      </span>
+    </button>
   );
 }
 
@@ -104,8 +146,34 @@ export default function CourseSection() {
   const { loading, error, courses, retry } = useCourseData();
   const [query, setQuery] = React.useState("");
   const [sortDirection, setSortDirection] = React.useState<SortDirection>("none");
+  const [selectedCategory, setSelectedCategory] = React.useState<string | null>(null);
 
-  const filtered = React.useMemo(() => filterCourses(courses, query), [courses, query]);
+  const mainCategories = React.useMemo(() => {
+    const map = new Map<string, { courseCount: number; subCourses: Set<string> }>();
+    for (const course of courses) {
+      if (!map.has(course.mainCategory)) {
+        map.set(course.mainCategory, { courseCount: 0, subCourses: new Set() });
+      }
+      const entry = map.get(course.mainCategory)!;
+      entry.courseCount += 1;
+      entry.subCourses.add(course.shortCourse);
+    }
+    return Array.from(map.entries()).map(([name, entry]) => ({
+      name,
+      courseCount: entry.courseCount,
+      subCourseCount: entry.subCourses.size,
+    }));
+  }, [courses]);
+
+  const categoryCourses = React.useMemo(
+    () => (selectedCategory ? courses.filter((c) => c.mainCategory === selectedCategory) : []),
+    [courses, selectedCategory],
+  );
+
+  const filtered = React.useMemo(
+    () => filterCourses(categoryCourses, query),
+    [categoryCourses, query],
+  );
   const sorted = React.useMemo(
     () => sortCoursesByPrice(filtered, sortDirection),
     [filtered, sortDirection],
@@ -118,311 +186,122 @@ export default function CourseSection() {
     setSortDirection((prev) => (prev === "none" ? "asc" : prev === "asc" ? "desc" : "none"));
   }
 
+  function openCategory(name: string) {
+    setSelectedCategory(name);
+    setQuery("");
+    setSortDirection("none");
+  }
+
+  function backToCategories() {
+    setSelectedCategory(null);
+  }
+
+  const btnGhost =
+    "rounded-lg border border-sp-border bg-transparent px-4 py-2.5 text-sm font-medium text-sp-text transition-all duration-150 ease-out hover:-translate-y-px hover:scale-105 hover:border-sp-accent hover:text-sp-accent active:translate-y-0 active:scale-[0.98]";
+  const btnPrimary =
+    "rounded-lg border border-transparent bg-sp-accent px-4 py-2.5 text-sm font-medium text-white transition-all duration-150 ease-out hover:-translate-y-px hover:scale-105 hover:shadow-[0_4px_16px_color-mix(in_srgb,var(--color-sp-accent)_40%,transparent)] active:translate-y-0 active:scale-[0.98]";
+
   return (
-    <section id="courses" className="sp-section">
-      <style>{STYLES}</style>
-
-      <div className="sp-header">
-        <h2 className="sp-title">Explore Courses</h2>
-
-        <div className="sp-controls">
-          <input
-            className="sp-search"
-            type="text"
-            placeholder="Search courses..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            aria-label="Search courses"
-          />
-          <button type="button" className="sp-btn sp-btn-ghost" onClick={cycleSort}>
-            Sort by price
-            {sortDirection === "asc" ? " ↑" : sortDirection === "desc" ? " ↓" : ""}
-          </button>
-        </div>
-      </div>
-
-      {status === "loading" && (
-        <div className="sp-grid">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <SkeletonCard key={i} />
-          ))}
-        </div>
-      )}
-
-      {status === "error" && (
-        <div className="sp-state-panel">
-          <p className="sp-state-text">
-            We couldn't load courses right now. This service is occasionally flaky — give it
-            another try.
-          </p>
-          <button type="button" className="sp-btn sp-btn-primary" onClick={retry}>
-            Retry
-          </button>
-        </div>
-      )}
-
-      {status === "empty" && (
-        <div className="sp-state-panel">
-          <p className="sp-state-text">No courses match right now. Try a different search.</p>
-        </div>
-      )}
-
-      {status === "success" && (
-        <div className="sp-groups">
-          {Array.from(grouped.entries()).map(([mainCategory, subGroups]) => (
-            <div key={mainCategory} className="sp-group">
-              <h3 className="sp-group-title">{mainCategory}</h3>
-              {Array.from(subGroups.entries()).map(([shortCourse, groupCourseList]) => (
-                <div key={shortCourse} className="sp-subgroup">
-                  <h4 className="sp-subgroup-title">{shortCourse}</h4>
-                  <div className="sp-grid">
-                    {groupCourseList.map((course) => (
-                      <CourseCard key={course.mangoId} course={course} />
-                    ))}
-                  </div>
-                </div>
-              ))}
+    <section id="courses" className="bg-sp-bg px-6 py-12 text-sp-text">
+      <div className="mx-auto max-w-[1100px]">
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-4 max-[640px]:flex-col max-[640px]:items-start">
+          {selectedCategory ? (
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                className={`${btnGhost} whitespace-nowrap`}
+                onClick={backToCategories}
+              >
+                ← All categories
+              </button>
+              <h2 className="m-0 text-[28px] font-semibold text-sp-text">{selectedCategory}</h2>
             </div>
-          ))}
+          ) : (
+            <h2 className="m-0 text-[28px] font-semibold text-sp-text">Explore Courses</h2>
+          )}
+
+          {selectedCategory && (
+            <div className="flex flex-wrap gap-3 max-[640px]:w-full">
+              <input
+                type="text"
+                placeholder="Search courses..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                aria-label="Search courses"
+                className="min-w-[220px] rounded-lg border border-sp-border bg-sp-bg px-3.5 py-2.5 text-sm text-sp-text transition-all duration-200 ease-out focus:border-sp-accent focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-sp-accent)_20%,transparent)] focus:outline-none max-[640px]:min-w-0 max-[640px]:flex-1"
+              />
+              <button type="button" className={btnGhost} onClick={cycleSort}>
+                Sort by price
+                {sortDirection === "asc" ? " ↑" : sortDirection === "desc" ? " ↓" : ""}
+              </button>
+            </div>
+          )}
         </div>
-      )}
+
+        {status === "loading" && (
+          <div className="flex flex-wrap justify-start gap-4 pb-2.5 max-[640px]:flex-col">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </div>
+        )}
+
+        {status === "error" && (
+          <div className="flex flex-col items-start gap-4 rounded-xl border border-sp-border bg-sp-surface p-8">
+            <p className="m-0 text-sm text-sp-text-muted">
+              We couldn't load courses right now. This service is occasionally flaky — give it
+              another try.
+            </p>
+            <button type="button" className={btnPrimary} onClick={retry}>
+              Retry
+            </button>
+          </div>
+        )}
+
+        {status === "success" && !selectedCategory && (
+          <div className="flex flex-wrap justify-start gap-4 pb-1 max-[640px]:flex-col">
+            {mainCategories.map((category) => (
+              <MainCategoryCard
+                key={category.name}
+                name={category.name}
+                courseCount={category.courseCount}
+                subCourseCount={category.subCourseCount}
+                onClick={() => openCategory(category.name)}
+              />
+            ))}
+          </div>
+        )}
+
+        {status === "success" && selectedCategory && sorted.length === 0 && (
+          <div className="flex flex-col items-start gap-4 rounded-xl border border-sp-border bg-sp-surface p-8">
+            <p className="m-0 text-sm text-sp-text-muted">
+              No courses match right now. Try a different search.
+            </p>
+          </div>
+        )}
+
+        {status === "success" && selectedCategory && sorted.length > 0 && (
+          <div>
+            {Array.from(grouped.entries()).map(([, subGroups]) => (
+              <React.Fragment key={selectedCategory}>
+                {Array.from(subGroups.entries()).map(([shortCourse, groupCourseList]) => (
+                  <div key={shortCourse} className="mb-6">
+                    <h4 className="m-0 mb-3 text-sm font-medium uppercase tracking-wide text-sp-text-muted">
+                      {shortCourse}
+                    </h4>
+                    <div className="flex flex-wrap justify-start gap-4 pb-2.5 max-[640px]:flex-col">
+                      {groupCourseList.map((course) => (
+                        <CourseCard key={course.mangoId} course={course} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </React.Fragment>
+            ))}
+          </div>
+        )}
+      </div>
     </section>
   );
 }
 
-const STYLES = `
-.sp-section {
-  background: ${PALETTE.bg};
-  color: ${PALETTE.text};
-  padding: 48px 24px;
-}
-
-.sp-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 32px;
-}
-
-.sp-title {
-  font-size: 28px;
-  font-weight: 600;
-  margin: 0;
-  color: ${PALETTE.text};
-}
-
-.sp-controls {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.sp-search {
-  background: ${PALETTE.surface};
-  border: 1px solid ${PALETTE.border};
-  color: ${PALETTE.text};
-  border-radius: 8px;
-  padding: 10px 14px;
-  font-size: 14px;
-  min-width: 220px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-.sp-search:focus {
-  outline: none;
-  border-color: ${PALETTE.accent};
-  box-shadow: 0 0 0 3px color-mix(in srgb, ${PALETTE.accent} 25%, transparent);
-}
-
-.sp-btn {
-  border-radius: 8px;
-  padding: 10px 16px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: transform 0.15s ease, background 0.2s ease, box-shadow 0.2s ease;
-}
-.sp-btn:hover {
-  transform: translateY(-1px);
-}
-.sp-btn:active {
-  transform: translateY(0);
-}
-.sp-btn-primary {
-  background: ${PALETTE.accent};
-  color: ${PALETTE.black};
-}
-.sp-btn-primary:hover {
-  box-shadow: 0 4px 16px color-mix(in srgb, ${PALETTE.accent} 45%, transparent);
-}
-.sp-btn-ghost {
-  background: transparent;
-  border-color: ${PALETTE.border};
-  color: ${PALETTE.text};
-}
-.sp-btn-ghost:hover {
-  border-color: ${PALETTE.accent};
-  color: ${PALETTE.accent};
-}
-
-.sp-group {
-  margin-bottom: 40px;
-  animation: sp-fade-in 0.4s ease both;
-}
-.sp-group-title {
-  font-size: 20px;
-  font-weight: 600;
-  margin: 0 0 12px;
-  color: ${PALETTE.text};
-}
-.sp-subgroup {
-  margin-bottom: 24px;
-}
-.sp-subgroup-title {
-  font-size: 14px;
-  font-weight: 500;
-  color: ${PALETTE.textMuted};
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin: 0 0 12px;
-}
-
-.sp-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-}
-@media (max-width: 1024px) {
-  .sp-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-@media (max-width: 640px) {
-  .sp-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.sp-card {
-  background: ${PALETTE.surface};
-  border: 1px solid ${PALETTE.border};
-  border-radius: 12px;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-  animation: sp-fade-in 0.35s ease both;
-}
-.sp-card:hover {
-  transform: translateY(-4px);
-  border-color: ${PALETTE.accent};
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
-}
-
-.sp-card-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.sp-card-type {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: ${PALETTE.textMuted};
-}
-.sp-badge {
-  font-size: 11px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: color-mix(in srgb, ${PALETTE.accent} 20%, transparent);
-  color: ${PALETTE.accent};
-  border: 1px solid color-mix(in srgb, ${PALETTE.accent} 40%, transparent);
-}
-
-.sp-card-title {
-  font-size: 16px;
-  font-weight: 600;
-  margin: 0;
-  color: ${PALETTE.text};
-}
-.sp-card-desc {
-  font-size: 13px;
-  color: ${PALETTE.textMuted};
-  margin: 0;
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.sp-card-footer {
-  margin-top: auto;
-  padding-top: 8px;
-}
-.sp-card-price {
-  font-size: 15px;
-  font-weight: 600;
-  color: ${PALETTE.text};
-}
-
-.sp-skeleton {
-  gap: 10px;
-}
-.sp-skeleton-line {
-  height: 12px;
-  border-radius: 4px;
-  background: linear-gradient(
-    90deg,
-    ${PALETTE.surfaceRaised} 25%,
-    ${PALETTE.border} 37%,
-    ${PALETTE.surfaceRaised} 63%
-  );
-  background-size: 400% 100%;
-  animation: sp-shimmer 1.4s ease infinite;
-}
-.sp-skeleton-title {
-  height: 18px;
-  width: 70%;
-}
-.sp-skeleton-short {
-  width: 40%;
-}
-
-.sp-state-panel {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 16px;
-  padding: 32px;
-  background: ${PALETTE.surface};
-  border: 1px solid ${PALETTE.border};
-  border-radius: 12px;
-}
-.sp-state-text {
-  margin: 0;
-  color: ${PALETTE.textMuted};
-  font-size: 14px;
-}
-
-@keyframes sp-shimmer {
-  0% {
-    background-position: 100% 0;
-  }
-  100% {
-    background-position: -100% 0;
-  }
-}
-@keyframes sp-fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-`;
